@@ -1,0 +1,2 @@
+bleak==3.0.2
+pyobjc-framework-WebKit==12.2.1

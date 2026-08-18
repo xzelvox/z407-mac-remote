@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# py2app / build artifacts
+build/
+dist/
+
+# venv
+.venv/
+venv/
+
+# Claude Code ローカル設定
+.claude/
+
+# macOS
+.DS_Store
