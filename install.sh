@@ -16,7 +16,8 @@
 #   TCC で読めない。ソースはこのリポジトリ、実体は内蔵ディスクへ配置する。
 #
 # このリポジトリは「ソース」。編集したら再度 install.sh を実行して反映する。
-# sudo 不要。再実行しても安全(冪等)。
+# 再実行しても安全(冪等)。Homebrew 未導入時のみ、その公式インストーラが
+# macOS の管理者パスワードを求める場合がある。
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -61,20 +62,41 @@ stop_app() {
     exit 1
 }
 
-# Python 3.12 を用意(無ければ Homebrew で導入)。
+# Homebrew が標準の場所にある場合、非ログインシェルでも検出できるようにする。
+if ! command -v brew >/dev/null 2>&1; then
+    if [ -x /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [ -x /usr/local/bin/brew ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+fi
+
+# Python 3.12 を用意(無ければ Homebrew と python@3.12 を順に導入)。
 # bleak/pyobjc の arm64 wheel と本コードの型注釈(PEP 604)に 3.12+ が前提。
 if [ -z "${PYTHON:-}" ] && ! command -v python3.12 >/dev/null 2>&1; then
     echo "==> Python 3.12 が見つかりません"
-    if command -v brew >/dev/null 2>&1; then
-        echo "==> Homebrew で python@3.12 を導入します"
-        brew install python@3.12
-        export PATH="$(brew --prefix)/bin:$PATH"
-    else
-        echo "Homebrew が無いため Python 3.12 を自動導入できません。導入後に再実行してください:"
-        echo "  - Homebrew: https://brew.sh を入れて 'brew install python@3.12'"
-        echo "  - または python.org から Python 3.12: https://www.python.org/downloads/"
-        exit 1
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "==> Homebrew が見つからないため、公式インストーラで導入します"
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "エラー: Homebrew の取得に必要な curl が見つかりません。" >&2
+            exit 1
+        fi
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+        # Homebrew のインストーラが表示する shellenv 設定を、現在の処理にも反映する。
+        if [ -x /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -x /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        else
+            echo "エラー: Homebrew のインストール後も brew を検出できませんでした。" >&2
+            exit 1
+        fi
     fi
+
+    echo "==> Homebrew で python@3.12 を導入します"
+    brew install python@3.12
+    export PATH="$(brew --prefix)/bin:$PATH"
 fi
 PYTHON="${PYTHON:-$(command -v python3.12)}"
 echo "==> Using Python: $PYTHON ($($PYTHON --version 2>&1))"
