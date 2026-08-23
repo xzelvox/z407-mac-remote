@@ -222,7 +222,9 @@ class Z407MenuApp:
         self.js_ready = False
         self.input = "BT"  # 現在入力(取得不可なので既定 BT を保持/ハイライト)
         self.msg = ""
-        self.lang = self._load_lang()
+        self._settings = self._load_settings()
+        self.lang = self._settings.get("lang", "ja")
+        self.bass = self._settings.get("bass", 0)  # ローカル保存値(-5..+5)
         self.spotify_installed = _spotify_installed()
         self._poll_future = None
 
@@ -325,6 +327,7 @@ class Z407MenuApp:
             "spotifyInstalled": self.spotify_installed,
             "msg": self.msg,
             "lang": self.lang,
+            "bass": self.bass,
         }
         vol = await self._osascript(_SYS_VOL_GET)
         try:
@@ -393,6 +396,14 @@ class Z407MenuApp:
         elif action == "bassDown":
             if self._require_connected():
                 self._submit(self.remote.bass_down())
+        elif action == "bass":
+            # 画面のバス推定値をローカル保存用に受け取る(実機の値ではない点に注意)。
+            try:
+                v = int(value)
+            except Exception:  # noqa: BLE001
+                return
+            self.bass = max(-5, min(5, v))
+            self._save_settings()
         elif action == "spotifyOpen":
             self._submit(self._spotify_open())
         elif action == "factoryReset":
@@ -445,23 +456,38 @@ class Z407MenuApp:
             return ""
         return self._T("searchHint")
 
-    # --- 言語設定(i18n) ---
-    def _load_lang(self) -> str:
-        """永続化した言語設定を読み込む。なければ日本語。"""
+    # --- 設定(i18n / bass) ---
+    def _load_settings(self) -> dict:
+        """settings.json を読み、全キー(lang, bass)を返す。欠落・不正なら既定値。"""
+        s = {"lang": "ja", "bass": 0}
         try:
             with open(_SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                lang = data.get("lang", "ja")
-                return lang if lang in ("ja", "en") else "ja"
-        except Exception:  # noqa: BLE001
-            return "ja"
-
-    def _save_lang(self) -> None:
-        try:
-            with open(_SETTINGS_FILE, "w", encoding="utf-8") as f:
-                json.dump({"lang": self.lang}, f, ensure_ascii=False)
+            lang = data.get("lang", "ja")
+            if lang in ("ja", "en"):
+                s["lang"] = lang
+            b = data.get("bass", 0)
+            if isinstance(b, (int, float)):
+                s["bass"] = max(-5, min(5, int(b)))
         except Exception:  # noqa: BLE001
             pass
+        return s
+
+    def _save_settings(self) -> None:
+        """settings.json に現在の設定(lang, bass)を保存する。ディレクトリも保証。"""
+        try:
+            os.makedirs(os.path.dirname(_SETTINGS_FILE), exist_ok=True)
+            with open(_SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump({"lang": self.lang, "bass": self.bass}, f, ensure_ascii=False)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _load_lang(self) -> str:
+        """永続化した言語設定(self._settings の lang)を返す。なければ日本語。"""
+        return self._settings.get("lang", "ja")
+
+    def _save_lang(self) -> None:
+        self._save_settings()
 
     def _T(self, key: str, **kw) -> str:
         """現在の言語でメッセージを取得する。見つからなければ日本語、それも無ければ key。"""
@@ -503,6 +529,7 @@ class Z407MenuApp:
                 return  # 中止された
             self.msg = self._T("connecting")
             await remote.connect()
+            remote.on_input_change = self._on_input_actual
             self.remote = remote
             self.msg = ""
         except Exception as e:  # noqa: BLE001
@@ -589,6 +616,7 @@ class Z407MenuApp:
                 # 接続中にキャンセルされた場合は Pair を送らない
                 await remote.disconnect()
                 return
+            remote.on_input_change = self._on_input_actual
             self.remote = remote  # ペアリングでは接続は維持される
             await remote.bluetooth_pair()
             self.msg = self._T("pairSent")
@@ -608,6 +636,18 @@ class Z407MenuApp:
         if coro:
             self.input = which
             self._submit(coro())
+
+    def _on_input_actual(self, which):
+        """実機の入力切替通知(cf04/05/06)を反映する。
+
+        z407_remote の notify コールバック(asyncio ループ)から呼ばれる。
+        ここでは self.input を更新するだけにし、即時 push はしない。次のポーリング
+        (_gather_state)がフル状態を送るため、部分状態 push による Spotify 表示への
+        影響を避けつつ 1s 以内に JS 側へ反映される。self.input への書き込みは
+        _gather_state と同じ asyncio ループから行われるため競合しない。
+        """
+        if which in ("BT", "AUX", "USB"):
+            self.input = which
 
     async def _set_volume(self, v):
         v = max(0, min(100, int(v)))

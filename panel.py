@@ -308,7 +308,7 @@ HTML = r"""<!DOCTYPE html>
   }
 
   // ---- bass knob (local -5..+5, one-way BLE commands) ----
-  var bass=0;
+  var bass=0, BASS_LOCK=0;
   function paintBass(v){ bass=v; $('bassVal').textContent=(v>0?'+':'')+v; paintKnob('bass', (v+5)/10, 0.06+Math.abs(v)*0.03); }
   function bassChange(d){
     var nv=Math.max(-5,Math.min(5,bass+d));
@@ -316,6 +316,8 @@ HTML = r"""<!DOCTYPE html>
     var old=bass; bass=nv; paintBass(bass);
     var steps=Math.abs(nv-old);
     for(var i=0;i<steps;i++) send(d>0?'bassUp':'bassDown');
+    send('bass', nv);            // 絶対値(ローカル推定)を保存用に Python へ通知
+    BASS_LOCK=Date.now()+800;    // 直後 800ms はポーリングで上書きしない(volume と同一)
   }
 
   // ---- hold-to-repeat for +/- buttons ----
@@ -380,6 +382,9 @@ HTML = r"""<!DOCTYPE html>
 
     // volume(ボタン操作直後 800ms は上書きしない。その後は実値に追従)
     if(Date.now()>volLockUntil && s.volume!==undefined && s.volume!==null) paintVol(s.volume);
+
+    // bass(ローカル保存値。操作直後 800ms は上書きしない。起動時は保存値を復元)
+    if(Date.now()>BASS_LOCK && s.bass!==undefined && s.bass!==null) paintBass(s.bass);
 
     // input segmented
     ['BT','AUX','USB'].forEach(function(k){

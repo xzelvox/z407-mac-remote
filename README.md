@@ -24,7 +24,7 @@ From the 🔊 menu bar icon:
 
 - **Connect** — finds and connects to your Z407
 - **Volume knob** — controls the macOS **system output** volume (0–100, in steps of 5) with a rotary knob (− / +, hold to repeat). This controls the Mac's system volume, **not the speaker's BLE volume**, and works even without a Z407 connection.
-- **Bass knob** — adjusts the Z407's bass via BLE (one-way `8000`/`8001`) with a grey rotary knob. The displayed −5…+5 is a **local estimate of how many steps you've sent** — the app can't read the speaker's actual bass level, and it resets each time you open the panel. Requires an active Z407 connection.
+- **Bass knob** — adjusts the Z407's bass via BLE (one-way `8000`/`8001`) with a grey rotary knob. The displayed −5…+5 is a **local estimate of how many steps you've sent** — the app can't read the speaker's actual bass level. The value is **saved locally and restored on the next launch**, but **if you control the same speaker from multiple Macs (or with the physical dial), each device tracks its own estimate, so the on-screen value can drift from the speaker's actual bass**. Requires an active Z407 connection.
 - **Spotify integration** — Play / Pause, Previous / Next, and now-playing info via the Spotify app
 - **Z407 controls over BLE** — Input switching (Bluetooth / Aux / USB), Bluetooth Pairing, Factory Reset (with 2-tap confirmation)
 

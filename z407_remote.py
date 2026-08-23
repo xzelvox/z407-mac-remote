@@ -18,6 +18,14 @@ RESPONSE_UUID = "b84ac9c6-29c5-46d4-bba1-9d534784330f"  # notify
 _HS_REQUEST = b"\xd4\x05\x01"  # 「ACK を返せ」
 _HS_DONE = b"\xd4\x00\x01"     # 「接続確立」
 
+# 入力が実際に切り替わったときにデバイスから notify されるステータス(freundTech の
+# Protocol.md で判明したレスポンスコード)。cf04=BT / cf05=AUX / cf06=USB。
+_INPUT_STATUS = {
+    b"\xcf\x04": "BT",
+    b"\xcf\x05": "AUX",
+    b"\xcf\x06": "USB",
+}
+
 # コマンド(hex 文字列 → bytes.fromhex で送信)
 _CMD_CONNECT = "8405"
 _CMD_HANDSHAKE_ACK = "8400"
@@ -45,6 +53,7 @@ class Z407Remote:
         self.client: BleakClient | None = None
         self.connected = False
         self._handshake: asyncio.Event | None = None
+        self.on_input_change = None  # 入力切替通知先(str "BT"/"AUX"/"USB" を受ける callable)
 
     @staticmethod
     async def find(timeout: float = 12.0) -> "Z407Remote | None":
@@ -97,6 +106,10 @@ class Z407Remote:
             await self._write(_CMD_HANDSHAKE_ACK)
         elif data == _HS_DONE and self._handshake is not None:
             self._handshake.set()
+        else:
+            src = _INPUT_STATUS.get(data)
+            if src is not None and self.on_input_change is not None:
+                self.on_input_change(src)
 
     async def _write(self, command_hex: str) -> None:
         """生のコマンド送信。接続ガードはしない(ハンドシェイク中も使うため)。"""

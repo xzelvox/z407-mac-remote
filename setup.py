@@ -18,8 +18,8 @@ OPTIONS = {
         "CFBundleName": "Z407 Remote",
         "CFBundleDisplayName": "Z407 Remote",
         "CFBundleIdentifier": "com.local.z407remote",
-        "CFBundleVersion": "1.0.0",
-        "CFBundleShortVersionString": "1.0.0",
+        "CFBundleVersion": "1.0.1",
+        "CFBundleShortVersionString": "1.0.1",
         "LSUIElement": True,
         "NSBluetoothAlwaysUsageDescription":
             "Z407 Remote uses Bluetooth to control your Logitech Z407 speakers.",
